@@ -59,15 +59,7 @@ def convert_llama_docs_to_agno(llama_docs):
 #     knowledge_base.load(recreate=True)
 #     knowledge_base.num_documents = 100
 #     return knowledge_base
-# def push_into_kb(agno_docs):
-#     knowledge_base = DocumentKnowledgeBase(
-#         documents=agno_docs,
-#         vector_db=LanceDb(table_name="documents", uri="tmp/lancedb"),
-#         embedder=GeminiEmbedder(api_key=GOOGLE_API_KEY)
-#     )
-#     knowledge_base.load(recreate=True)
-#     knowledge_base.num_documents = 100
-#     return knowledge_base
+
 def push_into_kb(agno_docs):
     knowledge_base = DocumentKnowledgeBase(
         documents=agno_docs,
@@ -200,51 +192,40 @@ def workflow_streamlit(file_path: str, video_urls: List[str], progress_bar, stat
     """Modified workflow function for Streamlit with progress tracking"""
     
     try:
-
-        status_text.text("🔄 Creating YouTube transcript agent...")
-        progress_bar.progress(10)        
+        status_text.text("🔄 Parsing PDF document...")
+        progress_bar.progress(10)
+        llama_docs = parsing_using_llamaparse(file_path)
+        
+        status_text.text("🔄 Converting documents to knowledge base format...")
+        progress_bar.progress(20)
+        agno_docs = convert_llama_docs_to_agno(llama_docs)
+        
+        status_text.text("🔄 Building knowledge base...")
+        progress_bar.progress(30)
+        pdf_kb = push_into_kb(agno_docs)
+        
+        status_text.text("🔄 Creating document verification agent...")
+        progress_bar.progress(40)
+        pdf_agent = create_prospectus_agent(pdf_kb)
+        
         final_formatted_transcript = ""
         for i, video_url in enumerate(video_urls):
             status_text.text(f"🔄 Processing video {i+1}/{len(video_urls)}...")
             progress_bar.progress(50 + (i * 20 // len(video_urls)))
-            transcript =""
-            try:
-                logging.info(f"Fetching transcript for video: {video_url}")
-                transcript = get_yt_transcript(video_url)
-            except Exception as e:
-                logging.error(f"Error fetching transcript for {video_url}: {e}")
-                status_text.text(f"❌ Error fetching transcript for video {i+1}")
-                continue
-            if not transcript:
-                logging.warning(f"No transcript found for video: {video_url}")
-                status_text.text(f"⚠️ No transcript found for video {i+1}")
-                continue
+            
+            transcript = get_yt_transcript(video_url)
             formatted_transcript = get_formatted_transcript(transcript)
             final_formatted_transcript += formatted_transcript + "\n\n"
         
-
+        status_text.text("🔄 Creating YouTube transcript agent...")
+        progress_bar.progress(70)
         yt_agent = create_yt_agent()
-        status_text.text("🔄 Parsing PDF document...")
-        progress_bar.progress(20)
-        llama_docs = parsing_using_llamaparse(file_path)
-        
-        status_text.text("🔄 Converting documents to knowledge base format...")
-        progress_bar.progress(30)
-        agno_docs = convert_llama_docs_to_agno(llama_docs)
-        
-        status_text.text("🔄 Building knowledge base...")
-        progress_bar.progress(40)
-        pdf_kb = push_into_kb(agno_docs)
-        
-        status_text.text("🔄 Creating document verification agent...")
-        progress_bar.progress(50)
-        pdf_agent = create_prospectus_agent(pdf_kb)
         
         if len(final_formatted_transcript) == 0:
             return "⚠️ No transcript content found to process"
         
         status_text.text("🔄 Analyzing transcript content...")
-        progress_bar.progress(60)
+        progress_bar.progress(80)
         yt_agent_res = yt_agent.run(final_formatted_transcript)
         
         status_text.text("🔄 Cross-verifying with document...")
@@ -262,6 +243,7 @@ def workflow_streamlit(file_path: str, video_urls: List[str], progress_bar, stat
     except Exception as e:
         logging.error(f"❌ Error in workflow: {e}", exc_info=True)
         return f"❌ Error occurred: {str(e)}"
+
 
 # Streamlit App
 def main():
@@ -426,6 +408,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
