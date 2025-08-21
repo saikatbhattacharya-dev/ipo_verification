@@ -14,6 +14,12 @@ from agno.embedder.google import GeminiEmbedder
 from youtube_transcript_api import YouTubeTranscriptApi
 from agno.agent import Agent
 from llama_parse import LlamaParse
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
+LLAMA_KEY = os.getenv("LLAMA_KEY")
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
 # Configure logging
 logging.basicConfig(
@@ -23,7 +29,6 @@ logging.basicConfig(
 
 # Your existing functions (keeping them as they are)
 def parsing_using_llamaparse(filepath):
-    LLAMA_KEY = "llx-OXaziqX3AqogcvCPW7ynmONJRj2FSZShwmJ0rMVxiVMkpV1X"
     parser = LlamaParse(api_key=LLAMA_KEY, result_type="markdown")
     docs = parser.load_data(filepath)
     return docs
@@ -43,7 +48,7 @@ def push_into_kb(agno_docs):
     knowledge_base = DocumentKnowledgeBase(
         documents=agno_docs,
         vector_db=ChromaDb(collection="documents", path="tmp/chromadb"),
-        embedder=GeminiEmbedder(api_key="AIzaSyD6fDFS---So3b4hkfmmz8Uhk1GG5unyD8")
+        embedder=GeminiEmbedder(api_key=GOOGLE_API_KEY)
     )
     knowledge_base.load(recreate=True)
     knowledge_base.num_documents = 100
@@ -51,7 +56,7 @@ def push_into_kb(agno_docs):
 
 def create_prospectus_agent(knowledge_base):
     return Agent(
-        model=Gemini(id="gemini-2.0-flash-exp", api_key="AIzaSyD6fDFS---So3b4hkfmmz8Uhk1GG5unyD8"),
+        model=Gemini(id="gemini-2.0-flash-exp", api_key=GOOGLE_API_KEY),
         knowledge=knowledge_base,
         instructions=[
             "You are a specialized financial document verification expert with access to company prospectus data.",
@@ -130,7 +135,7 @@ def get_formatted_transcript(transcript):
 
 def create_yt_agent():
     return Agent(
-        model=Gemini(id="gemini-2.0-flash-exp", api_key="AIzaSyD6fDFS---So3b4hkfmmz8Uhk1GG5unyD8"),
+        model=Gemini(id="gemini-2.0-flash-exp", api_key=GOOGLE_API_KEY),
         instructions=[
             "You are an AI agent specialized in analyzing video transcripts from company representatives.",
             "Your primary objective is to extract and structure key corporate information from speech transcripts.",
