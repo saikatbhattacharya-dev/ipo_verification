@@ -17,7 +17,7 @@ cachetools==5.5.2
 certifi==2025.8.3
 cffi==1.17.1
 charset-normalizer==3.4.3
-chromadb==1.0.20
+lancedb
 click==8.2.1
 colorama==0.4.6
 coloredlogs==15.0.1
@@ -171,5 +171,6 @@ yarl==1.20.1
 youtube-transcript-api==1.2.2
 zipp==3.23.0
 pysqlite3-binary
+
 
 
