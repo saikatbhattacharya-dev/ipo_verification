@@ -59,10 +59,23 @@ def convert_llama_docs_to_agno(llama_docs):
 #     knowledge_base.load(recreate=True)
 #     knowledge_base.num_documents = 100
 #     return knowledge_base
+# def push_into_kb(agno_docs):
+#     knowledge_base = DocumentKnowledgeBase(
+#         documents=agno_docs,
+#         vector_db=LanceDb(table_name="documents", uri="tmp/lancedb"),
+#         embedder=GeminiEmbedder(api_key=GOOGLE_API_KEY)
+#     )
+#     knowledge_base.load(recreate=True)
+#     knowledge_base.num_documents = 100
+#     return knowledge_base
 def push_into_kb(agno_docs):
     knowledge_base = DocumentKnowledgeBase(
         documents=agno_docs,
-        vector_db=LanceDb(table_name="documents", uri="tmp/lancedb"),
+        vector_db=LanceDb(
+            table_name="documents", 
+            uri="tmp/lancedb",
+            embedder=GeminiEmbedder(api_key=GOOGLE_API_KEY)
+        ),
         embedder=GeminiEmbedder(api_key=GOOGLE_API_KEY)
     )
     knowledge_base.load(recreate=True)
@@ -413,5 +426,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
