@@ -170,4 +170,6 @@ wrapt==1.17.3
 yarl==1.20.1
 youtube-transcript-api==1.2.2
 zipp==3.23.0
+pysqlite3-binary
+
 
