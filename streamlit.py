@@ -20,7 +20,13 @@ load_dotenv()
 
 LLAMA_KEY = os.getenv("LLAMA_KEY")
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+import sys
 
+try:
+    import pysqlite3
+    sys.modules["sqlite3"] = sys.modules.pop("pysqlite3")
+except ImportError:
+    pass
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,  
@@ -399,3 +405,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
