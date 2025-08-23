@@ -208,15 +208,33 @@ def workflow_streamlit(file_path: str, video_urls: List[str], progress_bar, stat
         progress_bar.progress(40)
         pdf_agent = create_prospectus_agent(pdf_kb)
         
+        # final_formatted_transcript = ""
+        # for i, video_url in enumerate(video_urls):
+        #     status_text.text(f"🔄 Processing video {i+1}/{len(video_urls)}...")
+        #     progress_bar.progress(50 + (i * 20 // len(video_urls)))
+
+        #     try:
+        #         transcript = get_yt_transcript(video_url)
+        #     except Exception as e :
+        #         print("Error with this {video_url}, moving to next link")
+        #         continue
+        #     formatted_transcript = get_formatted_transcript(transcript)
+        #     final_formatted_transcript += formatted_transcript + "\n\n"
+       
         final_formatted_transcript = ""
+
         for i, video_url in enumerate(video_urls):
             status_text.text(f"🔄 Processing video {i+1}/{len(video_urls)}...")
-            progress_bar.progress(50 + (i * 20 // len(video_urls)))
-            
-            transcript = get_yt_transcript(video_url)
+            progress_bar.progress(50 + ((i + 1) * 50 // len(video_urls)))  
+        
+            try:
+                transcript = get_yt_transcript(video_url)
+            except Exception as e:
+                print(f"Error with this {video_url}, moving to next link. Exception: {e}")
+                continue
             formatted_transcript = get_formatted_transcript(transcript)
             final_formatted_transcript += formatted_transcript + "\n\n"
-        
+            
         status_text.text("🔄 Creating YouTube transcript agent...")
         progress_bar.progress(70)
         yt_agent = create_yt_agent()
@@ -408,6 +426,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
