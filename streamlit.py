@@ -8,7 +8,6 @@ from typing import List
 # Import your existing modules
 from agno.document import Document 
 from agno.knowledge.document import DocumentKnowledgeBase
-from agno.vectordb.chroma import ChromaDb
 from agno.vectordb.lancedb import LanceDb
 from agno.models.google import Gemini
 from agno.embedder.google import GeminiEmbedder
@@ -21,7 +20,13 @@ load_dotenv()
 
 LLAMA_KEY = os.getenv("LLAMA_KEY")
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+import sys
 
+try:
+    import pysqlite3
+    sys.modules["sqlite3"] = sys.modules.pop("pysqlite3")
+except ImportError:
+    pass
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,  
@@ -45,26 +50,15 @@ def convert_llama_docs_to_agno(llama_docs):
         agno_docs.append(agno_doc)
     return agno_docs
 
-# def push_into_kb(agno_docs):
-#     knowledge_base = DocumentKnowledgeBase(
-#         documents=agno_docs,
-#         vector_db=ChromaDb(collection="documents", path="tmp/chromadb",embedder=GeminiEmbedder(api_key=GOOGLE_API_KEY)),
-#         embedder=GeminiEmbedder(api_key=GOOGLE_API_KEY)
-#     )
-#     knowledge_base.load(recreate=True)
-#     knowledge_base.num_documents = 100
-#     return knowledge_base
-
 def push_into_kb(agno_docs):
     knowledge_base = DocumentKnowledgeBase(
         documents=agno_docs,
+        vector_db=LanceDb(
+            table_name="documents", 
+            uri="tmp/lancedb",
+            embedder=GeminiEmbedder(api_key=GOOGLE_API_KEY)
+        ),
         vector_db=LanceDb(table_name="documents", uri="tmp/lancedb",embedder=GeminiEmbedder(api_key=GOOGLE_API_KEY)),
-        embedder=GeminiEmbedder(api_key=GOOGLE_API_KEY)
-    )
-    knowledge_base.load(recreate=True)
-    knowledge_base.num_documents = 100
-    return knowledge_base
-
 def create_prospectus_agent(knowledge_base):
     return Agent(
         model=Gemini(id="gemini-2.0-flash-exp", api_key=GOOGLE_API_KEY),
@@ -477,3 +471,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
