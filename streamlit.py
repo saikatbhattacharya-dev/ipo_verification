@@ -59,6 +59,11 @@ def push_into_kb(agno_docs):
             embedder=GeminiEmbedder(api_key=GOOGLE_API_KEY)
         ),
         vector_db=LanceDb(table_name="documents", uri="tmp/lancedb",embedder=GeminiEmbedder(api_key=GOOGLE_API_KEY)),
+        embedder=GeminiEmbedder(api_key=GOOGLE_API_KEY)
+    )
+    knowledge_base.load(recreate=True)
+    knowledge_base.num_documents = 30
+    return knowledge_base
 def create_prospectus_agent(knowledge_base):
     return Agent(
         model=Gemini(id="gemini-2.0-flash-exp", api_key=GOOGLE_API_KEY),
@@ -471,4 +476,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
