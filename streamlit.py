@@ -8,6 +8,7 @@ from typing import List
 # Import your existing modules
 from agno.document import Document 
 from agno.knowledge.document import DocumentKnowledgeBase
+from agno.vectordb.chroma import ChromaDb
 from agno.vectordb.lancedb import LanceDb
 from agno.models.google import Gemini
 from agno.embedder.google import GeminiEmbedder
@@ -20,13 +21,7 @@ load_dotenv()
 
 LLAMA_KEY = os.getenv("LLAMA_KEY")
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-import sys
 
-try:
-    import pysqlite3
-    sys.modules["sqlite3"] = sys.modules.pop("pysqlite3")
-except ImportError:
-    pass
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,  
@@ -53,7 +48,7 @@ def convert_llama_docs_to_agno(llama_docs):
 # def push_into_kb(agno_docs):
 #     knowledge_base = DocumentKnowledgeBase(
 #         documents=agno_docs,
-#         vector_db=ChromaDb(collection="documents", path="tmp/chromadb"),
+#         vector_db=ChromaDb(collection="documents", path="tmp/chromadb",embedder=GeminiEmbedder(api_key=GOOGLE_API_KEY)),
 #         embedder=GeminiEmbedder(api_key=GOOGLE_API_KEY)
 #     )
 #     knowledge_base.load(recreate=True)
@@ -63,16 +58,13 @@ def convert_llama_docs_to_agno(llama_docs):
 def push_into_kb(agno_docs):
     knowledge_base = DocumentKnowledgeBase(
         documents=agno_docs,
-        vector_db=LanceDb(
-            table_name="documents", 
-            uri="tmp/lancedb",
-            embedder=GeminiEmbedder(api_key=GOOGLE_API_KEY)
-        ),
+        vector_db=LanceDb(table_name="documents", uri="tmp/lancedb",embedder=GeminiEmbedder(api_key=GOOGLE_API_KEY)),
         embedder=GeminiEmbedder(api_key=GOOGLE_API_KEY)
     )
     knowledge_base.load(recreate=True)
     knowledge_base.num_documents = 100
     return knowledge_base
+
 def create_prospectus_agent(knowledge_base):
     return Agent(
         model=Gemini(id="gemini-2.0-flash-exp", api_key=GOOGLE_API_KEY),
@@ -187,6 +179,31 @@ def create_yt_agent():
         show_tool_calls=True,
         markdown=True,
     )
+def create_quality_agent():
+    return Agent(
+        model=Gemini(id="gemini-2.0-flash-exp", api_key=GOOGLE_API_KEY),
+        instructions=[
+            "You are a quality assurance agent for AI-generated financial analysis reports.",
+            "Your job is to assess whether the transcript analysis and verification report are:",
+            "- Factually consistent",
+            "- Free from hallucinations",
+            "- Complete and well-structured",
+            "",
+            "Scoring Guidelines (0–100):",
+            "- 90–100: Excellent (clear, accurate, complete, no hallucinations)",
+            "- 70–89: Good (mostly accurate, minor gaps)",
+            "- 50–69: Fair (some inaccuracies or incomplete sections)",
+            "- Below 50: Poor (hallucinated, unclear, or missing key info)",
+            "",
+            "Output Format (strict JSON):",
+            "{",
+            '  "quality_score": <integer>,',
+            '  "issues": "<brief description of problems found>"',
+            "}"
+        ],
+        show_tool_calls=True,
+        markdown=False,
+    )
 
 def workflow_streamlit(file_path: str, video_urls: List[str], progress_bar, status_text):
     """Modified workflow function for Streamlit with progress tracking"""
@@ -208,33 +225,15 @@ def workflow_streamlit(file_path: str, video_urls: List[str], progress_bar, stat
         progress_bar.progress(40)
         pdf_agent = create_prospectus_agent(pdf_kb)
         
-        # final_formatted_transcript = ""
-        # for i, video_url in enumerate(video_urls):
-        #     status_text.text(f"🔄 Processing video {i+1}/{len(video_urls)}...")
-        #     progress_bar.progress(50 + (i * 20 // len(video_urls)))
-
-        #     try:
-        #         transcript = get_yt_transcript(video_url)
-        #     except Exception as e :
-        #         print("Error with this {video_url}, moving to next link")
-        #         continue
-        #     formatted_transcript = get_formatted_transcript(transcript)
-        #     final_formatted_transcript += formatted_transcript + "\n\n"
-       
         final_formatted_transcript = ""
-
         for i, video_url in enumerate(video_urls):
             status_text.text(f"🔄 Processing video {i+1}/{len(video_urls)}...")
-            progress_bar.progress(50 + ((i + 1) * 50 // len(video_urls)))  
-        
-            try:
-                transcript = get_yt_transcript(video_url)
-            except Exception as e:
-                print(f"Error with this {video_url}, moving to next link. Exception: {e}")
-                continue
+            progress_bar.progress(50 + (i * 20 // len(video_urls)))
+            
+            transcript = get_yt_transcript(video_url)
             formatted_transcript = get_formatted_transcript(transcript)
             final_formatted_transcript += formatted_transcript + "\n\n"
-            
+        
         status_text.text("🔄 Creating YouTube transcript agent...")
         progress_bar.progress(70)
         yt_agent = create_yt_agent()
@@ -246,18 +245,66 @@ def workflow_streamlit(file_path: str, video_urls: List[str], progress_bar, stat
         progress_bar.progress(80)
         yt_agent_res = yt_agent.run(final_formatted_transcript)
         
+        # status_text.text("🔄 Cross-verifying with document...")
+        # progress_bar.progress(90)
+        # pdf_agent_res = pdf_agent.run(yt_agent_res.content)
+        
+        # progress_bar.progress(100)
+        # status_text.text("✅ Analysis completed successfully!")
+        
+        # return {
+        #     "transcript_analysis": yt_agent_res.content,
+        #     "verification_report": pdf_agent_res.content
+        # }
         status_text.text("🔄 Cross-verifying with document...")
         progress_bar.progress(90)
         pdf_agent_res = pdf_agent.run(yt_agent_res.content)
+        
+        # Step 3: Quality Check
+        status_text.text("🔎 Checking response quality...")
+        progress_bar.progress(95)
+        quality_agent = create_quality_agent()
+        quality_res = quality_agent.run({
+            "transcript_analysis": yt_agent_res.content,
+            "verification_report": pdf_agent_res.content
+        })
+
+        import json
+        try:
+            quality_data = json.loads(quality_res.content)
+            score = quality_data.get("quality_score", 0)
+        except Exception:
+            score = 0
+
+        # Retry if quality is poor
+        if score < 50:
+            logging.warning("⚠️ Low quality score detected. Retrying process once...")
+            status_text.text("⚠️ Low quality detected. Retrying...")
+            
+            yt_agent_res = yt_agent.run(final_formatted_transcript)
+            pdf_agent_res = pdf_agent.run(yt_agent_res.content)
+
+            # Re-check quality
+            quality_res = quality_agent.run({
+                "transcript_analysis": yt_agent_res.content,
+                "verification_report": pdf_agent_res.content
+            })
+            try:
+                quality_data = json.loads(quality_res.content)
+                score = quality_data.get("quality_score", 0)
+            except Exception:
+                score = 0
         
         progress_bar.progress(100)
         status_text.text("✅ Analysis completed successfully!")
         
         return {
             "transcript_analysis": yt_agent_res.content,
-            "verification_report": pdf_agent_res.content
+            "verification_report": pdf_agent_res.content,
+            "quality_score": score,
+            "quality_feedback": quality_res.content
         }
-        
+
     except Exception as e:
         logging.error(f"❌ Error in workflow: {e}", exc_info=True)
         return f"❌ Error occurred: {str(e)}"
@@ -383,6 +430,10 @@ def main():
                     with tab2:
                         st.subheader("Document Verification Report")
                         st.markdown(results["verification_report"])
+                        
+                    st.subheader("📊 Quality Check")
+                    st.write(f"**Quality Score:** {results['quality_score']} / 100")
+                    st.markdown(f"**Quality Feedback:** {results['quality_feedback']}")
                     
                     # Download option
                     st.subheader("💾 Export Results")
@@ -426,8 +477,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
-
-
